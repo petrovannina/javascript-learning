@@ -1,105 +1,335 @@
-'use strict'
+'use strict';
 
-console.log(document.documentElement);
-console.log(document.head);
-console.log(document.body);
+const form = document.querySelector('.form');
+const containerWorkouts = document.querySelector('.workouts');
+const inputType = document.querySelector('.form__input--type');
+const inputDistance = document.querySelector('.form__input--distance');
+const inputDuration = document.querySelector('.form__input--duration');
+const inputCadence = document.querySelector('.form__input--cadence');
+const inputElevation = document.querySelector('.form__input--elevation');
 
-const header = document.querySelector('header');  // returns the first element that return 
-document.querySelectorAll('header');  //return ALL the element that return
+class Workout {
+  date = new Date();
+  id = (Date.now() + '').slice(-10);
+  clicks = 0;
 
-document.getElementById('#first-id');  //return the element that has this id
+  constructor(coords, distance, duration) {
+    this.coords = coords; // [lat/lng]
+    this.distance = distance; // in km
+    this.duration = duration; // in min
+  }
 
-document.getElementsByTagName('div');
+  _setDescription() {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
 
-// HTMLCOLLECTION vs NODE Elements
-/*
-Node ELements- don't update itselfs when an element is deleted
-HTML COLLECTION update's itself when an element is deeted
+    this.description = `${this.type[0].toUpperCase()}${this.type.slice(1)} on ${
+      months[this.date.getMonth()]
+    } ${this.date.getDate()}`;
+  }
 
-*/
+  click() {
+    this.clicks++;
+  }
+}
 
-document.getElementsByClassName('container')
+class Running extends Workout {
+  type = 'running';
+  constructor(coords, distanse, duration, cadence) {
+    super(coords, distanse, duration);
+    this.cadence = cadence;
 
+    this.calcPace();
+    this._setDescription();
+  }
 
-// Creating and inserting elements
-// .isertAdjacentHTML
+  calcPace() {
+    // min/Km
+    this.pace = this.duration / this.distance;
+    return this.pace;
+  }
+}
 
-const message = document.createElement('div')
-message.classList.add('cookie-message');
-message.textContent = "this is my content text in my elemnt";
-message.innerHTML = 'this is my content text in my elemnt. <button>this is my button</button>';
-header.prepend(message); //as the first child of the element
-header.append(message); //as the last child of the element
+class Cycling extends Workout {
+  type = 'cycling';
+  constructor(coords, distanse, duration, elevetion) {
+    super(coords, distanse, duration);
+    this.elevetion = elevetion;
 
-header.append(message.cloneNode(true)); //daca vrem sa avem doua elemente ii facem clona
+    this.calcSpeed();
+    this._setDescription();
+  }
 
-// header.before(message);  // before header
-// header.after(message);  // after the header
+  calcSpeed() {
+    // km/h
+    this.speed = this.distance / (this.duration / 60);
+  }
+}
 
-// message.remove();  // removes the element from DOM
+// Application Architecture
+class App {
+  #map;
+  #mapZoomLevel = 13;
+  #mapEvent;
+  #workouts = [];
 
+  constructor() {
+    // Get user's position
+    this._getPsosition();
 
-// Lectia 188
+    // Get data from local storage
+    this._getLocalStorage();
 
-// Style
-message.style.backgroundColor = 'red';
-message.style.width = '120%';
+    // Attach event handlers
+    form.addEventListener('submit', this._newWorkout.bind(this));
+    inputType.addEventListener('change', this._toggleElevationField);
+    containerWorkouts.addEventListener('click', this._moveToPopup.bind(this));
+  }
 
-console.log(message.style.height);  //it works just for background colors
-console.log(message.style.backgroundColor); //it works here becouse it was set in 45 line as a inline style
+  _getPsosition() {
+    if (navigator.geolocation)
+      navigator.geolocation.getCurrentPosition(
+        this._loadMap.bind(this),
+        function () {
+          alert('Could not get your position');
+        }
+      );
+  }
 
-console.log(getComputedStyle(message));
+  _loadMap(position) {
+    const { latitude } = position.coords;
+    const { longitude } = position.coords;
 
-message.style.height = Number.parseFloat(getComputedStyle(message).height, 10) + 30 + 'px';
-document.documentElement.style.setProperty('--color-primary', 'orangered')   //we use this with custom properties
+    const coords = [latitude, longitude];
+    this.#map = L.map('map').setView(coords, this.#mapZoomLevel);
 
-// Attributes
-const logo = document.querySelector('.nav__logo');
-console.log(logo.alt);
-console.log(logo.src);
-console.log(logo.className);
-// dosen't work with custom propertys
-// console.log(logo.design); //dosen't work becouse this is not a property that usually an imagi has
+    L.tileLayer('https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(this.#map);
 
-logo.alt = 'Beatiful minimalist logo';
-console.log(logo.getAttribute('designer'));
-logo.setAttribute('company', 'Nina-company');
+    L.marker(coords)
+      .addTo(this.#map)
+      .bindPopup('A pretty CSS popup.<br> Easily customizable.')
+      .openPopup();
 
-logo.src;
-logo.getAttribute('src')
+    // Handling clicks on map
+    // Adds the Marker on the map when clicked in some point of the map
+    this.#map.on('click', this._showForm.bind(this));
 
-const link = document.querySelector('.nav__link--btn');
-console.log(link.href);
-console.log(link.getAttribute('href'));
+    this.#workouts.forEach(work => {
+      this._renderWorkout(work);
+    });
+  }
 
-// Data attributes
-console.log(logo.dataset.versionNumber);
+  _showForm(mapE) {
+    this.#mapEvent = mapE;
+    form.classList.remove('hidden');
+    inputDistance.focus();
+  }
 
-// Classes methods
-// .add() remove() toggle() .containes()
+  _hideForm() {
+    // Empty inputs
+    inputCadence.value =
+      inputDistance.value =
+      inputDuration.value =
+      inputElevation.value =
+        '';
 
-// Lectia 190
+    form.style.display = 'none';
+    form.classList.add('hidden');
+    setTimeout(() => (form.style.display = 'grid'), 1000);
+  }
 
-const alertH1 = function (e) {
-  alert('addEventLister: Great! You are reading the header');
-};
+  _toggleElevationField() {
+    inputElevation.closest('.form__row').classList.toggle('form__row--hidden');
+    inputCadence.closest('.form__row').classList.toggle('form__row--hidden');
+  }
 
-const h1 = document.querySelector('h1');
-// old way
-// h1.addEventListener('mouseenter', function (e) {
-//   alert('addEventLister: Great! You are reading the header')
-// })
+  _newWorkout(e) {
+    const validInputs = (...inputs) =>
+      inputs.every(inp => Number.isFinite(inp));
+    const allPositive = (...inputs) => inputs.every(inp => inp > 0);
+    e.preventDefault();
 
-// new way
-// h1.onmouseenter = function (e) {
-//    alert('onmouseenter: Great! You are reading the heading :D')
-//  }
+    // Get data from form
+    const type = inputType.value;
+    const distance = +inputDistance.value;
+    const duration = +inputDuration.value;
+    const { lat, lng } = this.#mapEvent.latlng;
+    let workout;
 
-h1.addEventListener('mouseenter', alertH1);
+    // If workout running, create running object
+    if (type === 'running') {
+      const cadence = +inputCadence.value;
+      // Check if data is valid
+      if (
+        // !Number.isFinite(distance) ||
+        // !Number.isFinite(duration) ||
+        // !Number.isFinite(cadence)
+        !validInputs(distance, duration, cadence) ||
+        !allPositive(distance, duration, cadence)
+      )
+        return alert('Inputs have to be positive numbers!');
 
-setTimeout(() => h1.removeEventListener('mouseenter', alertH1), 300);
+      workout = new Running([lat, lng], distance, duration, cadence);
+    }
 
-// Lectia 192
+    // If workout cycling, create cycling object
+    if (type === 'cycling') {
+      const elevation = +inputElevation.value;
 
+      if (
+        !validInputs(distance, duration, elevation) ||
+        !allPositive(distance, duration)
+      )
+        return alert('Inputs have to be positive numbers!');
+
+      workout = new Cycling([lat, lng], distance, duration, elevation);
+    }
+
+    // Add new object to workout array
+    this.#workouts.push(workout);
+
+    // Render workout on map as marker
+    this._renderWorkoutMarker(workout);
+
+    // Render worout on list
+    this._renderWorkout(workout);
+
+    // Hide form + clear input fields
+    this._hideForm();
+
+    // set local storage to all workouts
+    this._setLocalStorage();
+  }
+
+  _renderWorkoutMarker(workout) {
+    L.marker(workout.coords)
+      .addTo(this.#map)
+      .bindPopup(
+        L.popup({
+          maxWidth: 250,
+          minWidth: 100,
+          autoClose: false,
+          closeOnClick: false,
+          className: `${workout.type}-popup`,
+        })
+      )
+      .setPopupContent(
+        `${workout.type === 'running' ? '🏃‍♂️' : '🚴‍♀️'} ${workout.description}`
+      )
+      .openPopup();
+  }
+
+  _renderWorkout(workout) {
+    let html = `
+      <li class="workout workout--${workout.type}" data-id="${workout.id}">
+        <h2 class="workout__title">${workout.description}</h2>
+        <div class="workout__details">
+          <span class="workout__icon">${
+            workout.type === 'running' ? '🏃‍♂️' : '🚴‍♀️'
+          }</span>
+          <span class="workout__value">${workout.distance}</span>
+          <span class="workout__unit">km</span>
+        </div>
+        <div class="workout__details">
+          <span class="workout__icon">⏱</span>
+          <span class="workout__value">${workout.duration}</span>
+          <span class="workout__unit">min</span>
+        </div>
+    `;
+
+    if (workout.type === 'running')
+      html += ` 
+        <div class="workout__details">
+          <span class="workout__icon">⚡️</span>
+          <span class="workout__value">${workout.pace.toFixed(1)}</span>
+          <span class="workout__unit">min/km</span>
+        </div>
+        <div class="workout__details">
+          <span class="workout__icon">🦶🏼</span>
+          <span class="workout__value">${workout.cadence}</span>
+          <span class="workout__unit">spm</span>
+        </div>
+      </li>
+      `;
+
+    if (workout.type === 'cycling')
+      html += `
+        <div class="workout__details">
+          <span class="workout__icon">⚡️</span>
+          <span class="workout__value">${workout.speed.toFixed(1)}</span>
+          <span class="workout__unit">km/h</span>
+        </div>
+        <div class="workout__details">
+          <span class="workout__icon">⛰</span>
+          <span class="workout__value">${workout.elevation}</span>
+          <span class="workout__unit">m</span>
+        </div>
+      </li>
+      `;
+
+    form.insertAdjacentHTML('afterend', html);
+  }
+
+  _moveToPopup(e) {
+    // fix for when we click on map bfore is loaded
+    if (!this.#map) return;
+
+    const workoutEl = e.target.closest('.workout');
+
+    if (!workoutEl) return;
+
+    const workout = this.#workouts.find(
+      work => work.id === workoutEl.dataset.id
+    );
+    this.#map.setView(workout.coords, this.#mapZoomLevel, {
+      animate: true,
+      pan: {
+        duration: 1,
+      },
+    });
+
+    // using the public interface
+    workout.click();
+  }
+
+  _setLocalStorage() {
+    // local storage este un API pe care browser-ul ni-l ofera ca sa il putem folosi
+    localStorage.setItem('workouts', JSON.stringify(this.#workouts));
+  }
+
+  _getLocalStorage() {
+    const data = JSON.parse(localStorage.getItem('workouts'));
+
+    if (!data) return;
+
+    this.#workouts = data;
+
+    this.#workouts.forEach(work => {
+      this._renderWorkout(work);
+    });
+  }
+
+  reset() {
+    localStorage.removeItem('workouts');
+    location.reload();
+  }
+}
+
+const app = new App();
 
 
